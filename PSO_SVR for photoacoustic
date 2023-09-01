@@ -1,0 +1,104 @@
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split, KFold
+from sklearn import preprocessing
+from sklearn.metrics import mean_squared_error
+import time
+
+data = pd.read_excel('D:/Newpython/my_train/data/NIR_II_0812/train.xlsx')
+data2 = pd.read_excel('D:/Newpython/my_train/data/NIR_II_0812/test.xlsx')
+
+# 提取特征变量和标签变量
+X_train = data.iloc[:, :9]
+Y_train = data.iloc[:, -3:]
+X_test = data2.iloc[:, :9]
+Y_test = data2.iloc[:, -3:]
+# X_bone = data3.iloc[:, :15]
+# X_exp = data4.iloc[:, :15]
+
+# 特征归一化
+MinMax = preprocessing.MinMaxScaler()
+X_Tr = MinMax.fit_transform(X_train)
+X_Te = MinMax.transform(X_test)
+
+# 标签单独进行归一化
+y = Y_train.iloc[:, 2:3]
+ru_tr = y.values
+Y_Tr = y/max(ru_tr)
+# 将样本再拆分
+y_1 = Y_test.iloc[:, 2:3]
+
+ru_te = y_1.values
+Y_Te = y_1/max(ru_te)
+
+# 建模
+from sklearn.svm import SVR
+
+fold_count = 5
+X_Tr = pd.DataFrame(X_Tr)
+Y_Tr = pd.DataFrame(Y_Tr)
+X = X_Tr
+y_2 = Y_Tr
+# 损失函数
+def mape(y_true, y_pred):
+    np.seterr(divide='ignore', invalid='ignore')  # 消除被除数为0的警告
+    return np.mean(np.abs((y_pred - y_true) / y_true)) * 100
+
+# 目标函数
+def svrPso(params):
+    kf = KFold(n_splits=5, shuffle=True, random_state=0)
+    for k, (train, test) in enumerate(kf.split(X, y_2)):
+        mapeTotal = 0
+        mapeTotal2 = 0
+        X_train, y_train = X.iloc[train], y_2.iloc[train].values.ravel()
+        X_test, y_test = X.iloc[test], y_2.iloc[test].values.ravel()
+        nn = SVR(kernel='rbf', C=params[0], gamma=params[1])
+        nn.fit(X_train, y_train)
+        result = nn.predict(X_test)
+        # result2 = nn.predict(X_train)
+        if np.any(result < 0):
+            mapeTotal = 5
+            break
+        else:
+            thisMape1 = mean_squared_error(result, y_test)
+        # thisMape2 = mean_squared_error(result2, y_train)
+        # mapeTotal1 = mapeTotal1 + thisMape1
+        # mapeTotal2 = mapeTotal2 + thisMape2
+        # mapeTotal = (mapeTotal1 + mapeTotal2)/2
+        mapeTotal += thisMape1
+    mapeCV = mapeTotal / fold_count
+    print('{c}; {e}; {m}'.format(c=params[0], e=params[1], m=mapeCV))
+    return mapeCV
+
+
+print("************开始进行优化：PSO优化SVR*****************")
+
+# 定义优化器允许搜索的输入变量的限制。lb和ub别代表下限和上限  执指定了 参数C和参数epsilon的范围
+lb = np.array([1, 0.01])
+ub = np.array([600.0, 10])
+
+
+# pyswarm库是基于python的粒子群优化库，可以采用粒子群优化的方法对优化问题进行求解。
+from pyswarm import pso
+
+# 优化完成后，pso会返回两个对象：最优决策变量值xopt和最优函数值fopt。
+# svrPso为优化的目标函数
+# maxiter类型为int，用于设置粒子群算法的最大迭代次数，默认为100。
+# debug 类型为bool，用于设置是否显示每一步的迭代过程，默认为false。
+# phip 类型为scalar，用于调节粒子朝p_best（当前粒子的历史最优位置）方向飞行的权重。
+# swarmsize 类型为int，用于设置粒子的个数，默认为100。
+# minfunc 类型为scalar，用于设置目标函数的最小改变值，默认为1e-8。
+# 计算训练时间
+start = time.time()
+
+xopt, fopt = pso(svrPso, lb, ub, maxiter=500, debug=True, phip=10, swarmsize=300, minfunc=0.001)
+
+# 优化的参数值：C 正则化参数。正则化的强度与C成反比。 epsilon：它指定了在训练损失函数中预测值与实际值之间距离为epsilon的epsilon-tube。
+print(" ")
+print('优化的参数: C = {c}, gamma={e}, Overall MSE={m}'.format(c=xopt[0], e=xopt[1], m=fopt))
+print(" ")
+
+print("*****************************优化完成hb***********************************")
+end = time.time()
+print('Training time: %s S' % (end-start))
+
