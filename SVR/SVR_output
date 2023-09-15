@@ -1,0 +1,268 @@
+# SVR输入最优参数进行预测
+import pandas as pd
+import numpy as np  # 快速操作结构数组的工具
+from sklearn.svm import SVR
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn import preprocessing
+import time
+import warnings
+
+data = pd.read_excel('D:/Newpython/my_train/data/simple_0810/train.xlsx')
+data2 = pd.read_excel('D:/Newpython/my_train/data/simple_0810/test.xlsx')
+data3 = pd.read_excel('D:/Newpython/my_train/data/simple_0810/bone.xlsx')
+data4 = pd.read_excel('D:/Newpython/my_train/data/simple_0810/exp.xlsx')
+# 提取特征变量和标签变量
+X_train = data.iloc[:, :15]
+Y_train = data.iloc[:, -5:]
+X_test = data2.iloc[:, :15]
+Y_test = data2.iloc[:, -5:]
+X_bone = data3.iloc[:, :15]
+X_exp = data4.iloc[:, :15]
+
+# 特征归一化
+MinMax=preprocessing.MinMaxScaler()
+X_Tr = MinMax.fit_transform(X_train)
+X_Te = MinMax.transform(X_test)
+X_bo = MinMax.transform(X_bone)
+X_ex = MinMax.transform(X_exp)
+
+
+# 标签单独进行归一化
+y_hbo2 = Y_train.iloc[:, 0:1]
+y_hb = Y_train.iloc[:, 1:2]
+y_water = Y_train.iloc[:, 2:3]
+y_lipid = Y_train.iloc[:, 3:4]
+y_collagen = Y_train.iloc[:, 4:5]
+
+ru_hbo2 = y_hbo2.values
+ru_hb = y_hb.values
+ru_water = y_water.values
+ru_lipid = y_lipid.values
+ru_collagen = y_collagen.values
+
+y_hbo2_1 = y_hbo2/max(ru_hbo2)
+y_hb_1 = y_hb/max(ru_hb)
+y_water_1 = y_water/max(ru_water)
+y_lipid_1 = y_lipid/max(ru_lipid)
+y_collagen_1 = y_collagen/max(ru_collagen)
+
+# ========Model========
+
+C_hbo2 =219.00675067607787
+gamma_hbo2 =0.3104446094663378
+
+C_hb =142.4693144820599
+gamma_hb =0.995226575818589
+
+C_water = 354.67334787717937
+gamma_water =0.2543896321300516
+
+C_lipid =278.3247177650053
+gamma_lipid =0.18761962103645935
+
+C_collagen= 66.53809141158254
+gamma_collagen =0.8898882722420491
+
+model_hbo2 = SVR(C=C_hbo2, gamma=gamma_hbo2)
+model_hb = SVR(C=C_hb, gamma=gamma_hb)
+model_water = SVR(C=C_water, gamma=gamma_water)
+model_lipid = SVR(C=C_lipid, gamma=gamma_lipid)
+model_collagen = SVR(C=C_collagen, gamma=gamma_collagen)
+model_hbo2.fit(X_Tr, y_hbo2_1)
+model_hb.fit(X_Tr, y_hb_1)
+model_water.fit(X_Tr, y_water_1)
+model_lipid.fit(X_Tr, y_lipid_1)
+model_collagen.fit(X_Tr, y_collagen_1)
+
+# 使用模型预测
+hbo2_te_p = model_hbo2.predict(X_Te)
+hb_te_p = model_hb.predict(X_Te)
+water_te_p = model_water.predict(X_Te)
+lipid_te_p = model_lipid.predict(X_Te)
+collagen_te_p = model_collagen.predict(X_Te)
+
+hbo2_te_p = hbo2_te_p*max(ru_hbo2)
+hb_te_p = hb_te_p*max(ru_hb)
+water_te_p = water_te_p*max(ru_water)
+lipid_te_p = lipid_te_p*max(ru_lipid)
+collagen_te_p = collagen_te_p*max(ru_collagen)
+
+
+print('HbO2')
+hbo2_Y_Tr=Y_train.iloc[:, 0:1].values
+hbo2_Y_Te=Y_test.iloc[:, 0:1].values
+rmse = mean_squared_error(hbo2_te_p, hbo2_Y_Te)**0.5
+print("RMSE=", rmse)
+mae = mean_absolute_error(hbo2_te_p, hbo2_Y_Te)
+print("MAE=", mae)
+r2 = r2_score(hbo2_te_p, hbo2_Y_Te)
+print("R2 = ", r2)
+
+print('Hb')
+hb_Y_Tr=Y_train.iloc[:, 1:2].values
+hb_Y_Te=Y_test.iloc[:, 1:2].values
+rmse = mean_squared_error(hb_te_p, hb_Y_Te)**0.5
+print("RMSE=", rmse)
+mae = mean_absolute_error(hb_te_p, hb_Y_Te)
+print("MAE=", mae)
+r2 = r2_score(hb_te_p, hb_Y_Te)
+print("R2 = ", r2)
+
+print('Water')
+water_Y_Tr=Y_train.iloc[:, 2:3].values
+water_Y_Te=Y_test.iloc[:, 2:3].values
+rmse = mean_squared_error(water_te_p, water_Y_Te)**0.5
+print("RMSE=", rmse)
+mae = mean_absolute_error(water_te_p, water_Y_Te)
+print("MAE=", mae)
+r2 = r2_score(water_Y_Te, water_te_p)
+print("R2 = ", r2)
+
+print('Lipid ')
+lipid_Y_Tr=Y_train.iloc[:, 3:4].values
+lipid_Y_Te=Y_test.iloc[:, 3:4].values
+rmse = mean_squared_error(lipid_te_p, lipid_Y_Te)**0.5
+print("RMSE=", rmse)
+mae = mean_absolute_error(lipid_te_p, lipid_Y_Te)
+print("MAE=", mae)
+r2 = r2_score(lipid_Y_Te, lipid_te_p)
+print("R2 = ", r2)
+
+print('Collagen')
+collagen_Y_Tr=Y_train.iloc[:, 4:5].values
+collagen_Y_Te=Y_test.iloc[:, 4:5].values
+rmse = mean_squared_error(collagen_te_p, collagen_Y_Te)**0.5
+print("RMSE=", rmse)
+mae = mean_absolute_error(collagen_te_p, collagen_Y_Te)
+print("MAE=", mae)
+r2 = r2_score(collagen_Y_Te, collagen_te_p)
+print("R2 = ", r2)
+
+# Hbo2保存数据
+hbo2_tr_p = model_hbo2.predict(X_Tr)
+hbo2_tr_p = hbo2_tr_p*max(ru_hbo2)
+hbo2_bone_p = model_hbo2.predict(X_bo)
+hbo2_bone_p = hbo2_bone_p*max(ru_hbo2)
+hbo2_exp_p = model_hbo2.predict(X_ex)
+hbo2_exp_p = hbo2_exp_p*max(ru_hbo2)
+# Hb保存数据
+hb_tr_p = model_hb.predict(X_Tr)
+hb_tr_p = hb_tr_p*max(ru_hb)
+hb_bone_p = model_hb.predict(X_bo)
+hb_bone_p = hb_bone_p*max(ru_hb)
+hb_exp_p = model_hb.predict(X_ex)
+hb_exp_p = hb_exp_p*max(ru_hb)
+# Water保存数据
+water_tr_p = model_water.predict(X_Tr)
+water_tr_p = water_tr_p*max(ru_water)
+water_bone_p = model_water.predict(X_bo)
+water_bone_p = water_bone_p*max(ru_water)
+water_exp_p = model_water.predict(X_ex)
+water_exp_p = water_exp_p*max(ru_water)
+# Lipid保存数据
+lipid_tr_p = model_lipid.predict(X_Tr)
+lipid_tr_p = lipid_tr_p*max(ru_lipid)
+lipid_bone_p = model_lipid.predict(X_bo)
+lipid_bone_p = lipid_bone_p*max(ru_lipid)
+lipid_exp_p = model_lipid.predict(X_ex)
+lipid_exp_p = lipid_exp_p*max(ru_lipid)
+# Collagen保存数据
+collagen_tr_p = model_collagen.predict(X_Tr)
+collagen_tr_p = collagen_tr_p*max(ru_collagen)
+collagen_bone_p = model_collagen.predict(X_bo)
+collagen_bone_p = collagen_bone_p*max(ru_collagen)
+collagen_exp_p = model_collagen.predict(X_ex)
+collagen_exp_p = collagen_exp_p*max(ru_collagen)
+
+sum_test = hb_te_p + hbo2_te_p + lipid_te_p + collagen_te_p+water_te_p
+sum_train = hb_tr_p + hbo2_tr_p + lipid_tr_p + collagen_tr_p+water_tr_p
+sum_bone = hb_bone_p + hbo2_bone_p + lipid_bone_p + collagen_bone_p+water_bone_p
+sum_exp = hb_exp_p + hbo2_exp_p + lipid_exp_p + collagen_exp_p+water_exp_p
+
+hb_te_p=hb_te_p/sum_test
+hbo2_te_p=hbo2_te_p/sum_test
+water_te_p=water_te_p/sum_test
+lipid_te_p=lipid_te_p/sum_test
+collagen_te_p=collagen_te_p/sum_test
+
+file_path = 'D:/PA_ML_Result/SVR_0809/hb_te.xlsx'  #
+df = pd.DataFrame(np.vstack((hb_Y_Te.ravel(), hb_te_p)))
+df.to_excel(file_path)
+file_path = 'D:/PA_ML_Result/SVR_0809/hbo2_te.xlsx'  
+df = pd.DataFrame(np.vstack((hbo2_Y_Te.ravel(), hbo2_te_p)))
+df.to_excel(file_path)
+file_path = 'D:/PA_ML_Result/SVR_0809/water_te.xlsx'  
+df = pd.DataFrame(np.vstack((water_Y_Te.ravel(), water_te_p)))
+df.to_excel(file_path)
+file_path = 'D:/PA_ML_Result/SVR_0809/lipid_te.xlsx'  
+df = pd.DataFrame(np.vstack((lipid_Y_Te.ravel(), lipid_te_p)))
+df.to_excel(file_path)
+file_path = 'D:/PA_ML_Result/SVR_0809/collagen_te.xlsx'  #
+df = pd.DataFrame(np.vstack((collagen_Y_Te.ravel(), collagen_te_p)))
+df.to_excel(file_path)
+
+hb_tr_p=hb_tr_p/sum_train
+hbo2_tr_p=hbo2_tr_p/sum_train
+water_tr_p=water_tr_p/sum_train
+lipid_tr_p=lipid_tr_p/sum_train
+collagen_tr_p=collagen_tr_p/sum_train
+
+file_path = 'D:/PA_ML_Result/SVR_0809/hb_tr.xlsx'  # 
+df = pd.DataFrame(np.vstack((hb_Y_Tr.ravel(), hb_tr_p)))
+df.to_excel(file_path)
+file_path = 'D:/PA_ML_Result/SVR_0809/hbo2_tr.xlsx'  
+df = pd.DataFrame(np.vstack((hbo2_Y_Tr.ravel(), hbo2_tr_p)))
+df.to_excel(file_path)
+file_path = 'D:/PA_ML_Result/SVR_0809/water_tr.xlsx'  
+df = pd.DataFrame(np.vstack((water_Y_Tr.ravel(), water_tr_p)))
+df.to_excel(file_path)
+file_path = 'D:/PA_ML_Result/SVR_0809/lipid_tr.xlsx'  
+df = pd.DataFrame(np.vstack((lipid_Y_Tr.ravel(), lipid_tr_p)))
+df.to_excel(file_path)
+file_path = 'D:/PA_ML_Result/SVR_0809/mineral_tr.xlsx'  
+df = pd.DataFrame(np.vstack((collagen_Y_Tr.ravel(), collagen_tr_p)))
+df.to_excel(file_path)
+
+hb_bone_p=hb_bone_p/sum_bone
+hbo2_bone_p=hbo2_bone_p/sum_bone
+water_bone_p=water_bone_p/sum_bone
+lipid_bone_p=lipid_bone_p/sum_bone
+collagen_bone_p=collagen_bone_p/sum_bone
+
+file_path = 'D:/PA_ML_Result/SVR_0809/hb_bone.xlsx'  # 
+df = pd.DataFrame(hb_bone_p)
+df.to_excel(file_path)
+file_path = 'D:/PA_ML_Result/SVR_0809/hbo2_bone.xlsx'  
+df = pd.DataFrame(hbo2_bone_p)
+df.to_excel(file_path)
+file_path = 'D:/PA_ML_Result/SVR_0809/water_bone.xlsx'  
+df = pd.DataFrame(water_bone_p)
+df.to_excel(file_path)
+file_path = 'D:/PA_ML_Result/SVR_0809/lipid_bone.xlsx'  
+df = pd.DataFrame(lipid_bone_p)
+df.to_excel(file_path)
+file_path = 'D:/PA_ML_Result/SVR_0809/collagen_bone.xlsx'  
+df = pd.DataFrame(collagen_bone_p)
+df.to_excel(file_path)
+
+hb_exp_p=hb_exp_p/sum_exp
+hbo2_exp_p=hbo2_exp_p/sum_exp
+water_exp_p=water_exp_p/sum_exp
+lipid_exp_p=lipid_exp_p/sum_exp
+collagen_exp_p=collagen_exp_p/sum_exp
+
+file_path = 'D:/PA_ML_Result/SVR_0809/hb_exp.xlsx'  # 
+df = pd.DataFrame(hb_exp_p)
+df.to_excel(file_path)
+file_path = 'D:/PA_ML_Result/SVR_0809/hbo2_exp.xlsx'  
+df = pd.DataFrame(hbo2_exp_p)
+df.to_excel(file_path)
+file_path = 'D:/PA_ML_Result/SVR_0809/water_exp.xlsx'  
+df = pd.DataFrame(water_exp_p)
+df.to_excel(file_path)
+file_path = 'D:/PA_ML_Result/SVR_0809/lipid_exp.xlsx'  
+df = pd.DataFrame(lipid_exp_p)
+df.to_excel(file_path)
+file_path = 'D:/PA_ML_Result/SVR_0809/collagen_exp.xlsx'  
+df = pd.DataFrame(collagen_exp_p)
+df.to_excel(file_path)
