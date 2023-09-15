@@ -5,77 +5,177 @@ from sklearn import preprocessing
 from sklearn.metrics import mean_squared_error
 import time
 
-data = pd.read_excel('D:/Newpython/my_train/data/NIR_II_0812/train.xlsx')
-data2 = pd.read_excel('D:/Newpython/my_train/data/NIR_II_0812/test.xlsx')
-
+data = pd.read_excel('D:/Newpython/my_train/data/simple_0810/train.xlsx')
+data2 = pd.read_excel('D:/Newpython/my_train/data/simple_0810/test.xlsx')
+data3 = pd.read_excel('D:/Newpython/my_train/data/simple_0810/bone.xlsx')
+data4 = pd.read_excel('D:/Newpython/my_train/data/simple_0810/exp.xlsx')
+data5 = pd.read_excel('D:/Newpython/my_train/data/simple_0810/data_train.xlsx')
+data6 = pd.read_excel('D:/Newpython/my_train/data/simple_0810/data_test.xlsx')
 # 提取特征变量和标签变量
-X_train = data.iloc[:, :9]
-Y_train = data.iloc[:, -3:]
-X_test = data2.iloc[:, :9]
-Y_test = data2.iloc[:, -3:]
-# X_bone = data3.iloc[:, :15]
-# X_exp = data4.iloc[:, :15]
+X_train = data.iloc[:, :15]
+Y_train = data.iloc[:, -5:]
+X_test = data2.iloc[:, :15]
+Y_test = data2.iloc[:, -5:]
+X_bone = data3.iloc[:, :15]
+X_exp = data4.iloc[:, :15]
+Wave_train = data5.iloc[:, :27]
+Wave_test = data6.iloc[:, :27]
+
+# X_train = pd.DataFrame(X_Tr)
+# y_train = pd.DataFrame(Y_train)
+# X_test = pd.DataFrame(X_Te)
+# y_test = pd.DataFrame(Y_test)
+# W_train = pd.DataFrame(Wave_train)
+# W_test = pd.DataFrame(Wave_test)
 
 # 特征归一化
 MinMax = preprocessing.MinMaxScaler()
 X_Tr = MinMax.fit_transform(X_train)
 X_Te = MinMax.transform(X_test)
+X_bo = MinMax.transform(X_bone)
+X_ex = MinMax.transform(X_exp)
 
 # 标签单独进行归一化
-y = Y_train.iloc[:, 2:3]
-ru_tr = y.values
-Y_Tr = y/max(ru_tr)
-# 将样本再拆分
-y_1 = Y_test.iloc[:, 2:3]
+# hbo2_tr = Y_train.iloc[:, 0:1]
+# hb_tr = Y_train.iloc[:, 1:2]
+# water_tr = Y_train.iloc[:, 2:3]
+# lipid_tr = Y_train.iloc[:, 3:4]
+# collagen_tr = Y_train.iloc[:, 4:5]
 
-ru_te = y_1.values
-Y_Te = y_1/max(ru_te)
+# ru_hbo2_tr = hbo2_tr.values
+# Y_Tr = y/max(ru_tr)
 
-# 建模
-from sklearn.svm import SVR
+from sklearn.metrics import r2_score
+mua = pd.read_excel('D:/Newpython/my_train/data/simple_0810/mua.xlsx')
+mua_hbo2 = mua.iloc[:, 0:1]
+mua_hb = mua.iloc[:, 1:2]
+mua_water = mua.iloc[:, 2:3]
+mua_lipid = mua.iloc[:, 3:4]
+mua_collagen = mua.iloc[:, 4:5]
 
-fold_count = 5
-X_Tr = pd.DataFrame(X_Tr)
-Y_Tr = pd.DataFrame(Y_Tr)
-X = X_Tr
-y_2 = Y_Tr
-# 损失函数
+# Phyice损失函数
+def phyice_inform(y_pre, y_true):
+    y_1 = MinMax.fit_transform(y_pre)
+    y_2 = MinMax.fit_transform(y_true)
+    r2_n = 1-(r2_score(y_1, y_2))
+    return r2_n
+# Data损失函数
 def mape(y_true, y_pred):
     np.seterr(divide='ignore', invalid='ignore')  # 消除被除数为0的警告
     return np.mean(np.abs((y_pred - y_true) / y_true)) * 100
 
+# 计算结果中小于0的个数
+def count0(result):
+    count = 0
+    # result = result.reshape(-1, 1)
+    for x1 in result:
+        if x1 < 0:
+            count += 1
+    return count
+
+
+
+# 建模
+from sklearn.svm import SVR
+fold_count = 5
+X = np.hstack((X_Tr, Wave_train))
+X = pd.DataFrame(X)
+Y_Tr = pd.DataFrame(Y_train)
 # 目标函数
 def svrPso(params):
     kf = KFold(n_splits=5, shuffle=True, random_state=0)
-    for k, (train, test) in enumerate(kf.split(X, y_2)):
-        mapeTotal = 0
-        mapeTotal2 = 0
-        X_train, y_train = X.iloc[train], y_2.iloc[train].values.ravel()
-        X_test, y_test = X.iloc[test], y_2.iloc[test].values.ravel()
-        nn = SVR(kernel='rbf', C=params[0], gamma=params[1])
-        nn.fit(X_train, y_train)
-        result = nn.predict(X_test)
-        # result2 = nn.predict(X_train)
+    for k, (train, test) in enumerate(kf.split(X, Y_Tr)):
+        MseTotal = 0
+        # X_BW_train, y_train = X.iloc[train], Y_Tr.iloc[train].values.ravel()
+        # X_BW_test, y_test = X.iloc[test], Y_Tr.iloc[test].values.ravel()
+        X_BW_train, y_train = X.iloc[train], Y_Tr.iloc[train]
+        X_BW_test, y_test = X.iloc[test], Y_Tr.iloc[test]
+
+        X_train = X_BW_train.iloc[:, 0:15]
+        # w_tr = X_BW_train.iloc[:, -27:]
+        X_test = X_BW_test.iloc[:, 0:15]
+        w_te = X_BW_test.iloc[:, -27:]
+
+        y_train = pd.DataFrame(y_train)
+
+        train_hbo2 = y_train.iloc[:, 0:1]
+        train_hb = y_train.iloc[:, 1:2]
+        train_water = y_train.iloc[:, 2:3]
+        train_lipid = y_train.iloc[:, 3:4]
+        train_collagen = y_train.iloc[:, 4:5]
+
+        model_hbo2 = SVR(kernel='rbf', C=params[0], gamma=params[1])
+        model_hb = SVR(kernel='rbf', C=params[2], gamma=params[3])
+        model_water = SVR(kernel='rbf', C=params[4], gamma=params[5])
+        model_lipid = SVR(kernel='rbf', C=params[6], gamma=params[7])
+        model_collagen = SVR(kernel='rbf', C=params[8], gamma=params[9])
+
+        model_hbo2.fit(X_train, train_hbo2.values.ravel())
+        model_hb.fit(X_train, train_hb.values.ravel())
+        model_water.fit(X_train, train_water.values.ravel())
+        model_lipid.fit(X_train, train_lipid.values.ravel())
+        model_collagen.fit(X_train, train_collagen.values.ravel())
+
+        test_hbo2 = y_test.iloc[:, 0:1]
+        test_hb = y_test.iloc[:, 1:2]
+        test_water = y_test.iloc[:, 2:3]
+        test_lipid = y_test.iloc[:, 3:4]
+        test_collagen = y_test.iloc[:, 4:5]
+
+        hbo2_te = model_hbo2.predict(X_test)
+        hb_te = model_hb.predict(X_test)
+        water_te = model_water.predict(X_test)
+        lipid_te = model_lipid.predict(X_test)
+        collagen_te = model_collagen.predict(X_test)
+        loss_ps = []
+
+        hbo2_te = pd.DataFrame(hbo2_te)
+        hb_te = pd.DataFrame(hb_te)
+        water_te = pd.DataFrame(water_te)
+        lipid_te = pd.DataFrame(lipid_te)
+        collagen_te = pd.DataFrame(collagen_te)
+        w_te = pd.DataFrame(w_te)
+
+        pre = list(zip(hbo2_te.values, hb_te.values, water_te.values, lipid_te.values, collagen_te.values, w_te.values))
+        for x in pre:
+            Wave_pre = x[0] * mua_hbo2.values + x[1] * mua_hb.values \
+                       + x[2] * mua_water.values + x[3] * mua_lipid.values + x[4] * mua_collagen.values
+            Wave_true = pd.DataFrame(x[5])
+            r2_now = phyice_inform(Wave_pre, Wave_true)
+            loss_ps.append(r2_now)
+            loss_p = np.mean(loss_ps)
+        result = np.vstack((hbo2_te.values, hb_te.values, water_te.values, lipid_te.values, collagen_te.values))
+        # count = count0(result)
+        # if count > 50:
+        #    MseTotal = 5
+        #    break
         if np.any(result < 0):
-            mapeTotal = 5
+            MseTotal = 5
             break
         else:
-            thisMape1 = mean_squared_error(result, y_test)
-        # thisMape2 = mean_squared_error(result2, y_train)
-        # mapeTotal1 = mapeTotal1 + thisMape1
-        # mapeTotal2 = mapeTotal2 + thisMape2
-        # mapeTotal = (mapeTotal1 + mapeTotal2)/2
-        mapeTotal += thisMape1
-    mapeCV = mapeTotal / fold_count
-    print('{c}; {e}; {m}'.format(c=params[0], e=params[1], m=mapeCV))
-    return mapeCV
+            loss_data = (mean_squared_error(hbo2_te, test_hbo2) + mean_squared_error(hb_te, test_hb)
+                         + mean_squared_error(water_te, test_water) + mean_squared_error(lipid_te, test_lipid)
+                         + mean_squared_error(collagen_te,test_collagen))/5
+            ThisMse = loss_p + loss_data
+            MseTotal = MseTotal + ThisMse
+    MseCV = MseTotal / fold_count
+    print('HbO2:    {hbo2_c}; {hbo2_e};\n'
+          'Hb:      {hb_c};{hb_e};\n'
+          'Water:   {water_c};{water_e};\n'
+          'Lipid:   {lipid_c};{lipid_e};\n'
+          'Collagen:{collagen_c};{collagen_e};\n'
+          'Loss:{m}\n'.format(hbo2_c=params[0], hbo2_e=params[1], hb_c=params[2], hb_e=params[3],
+                              water_c=params[4], water_e=params[5], lipid_c=params[6], lipid_e=params[7],
+                              collagen_c=params[8], collagen_e=params[9],
+                              m=MseCV))
+    return MseCV
 
 
 print("************开始进行优化：PSO优化SVR*****************")
 
 # 定义优化器允许搜索的输入变量的限制。lb和ub别代表下限和上限  执指定了 参数C和参数epsilon的范围
-lb = np.array([1, 0.01])
-ub = np.array([600.0, 10])
+lb = np.array([1, 0.01, 1, 0.01, 1, 0.01, 1, 0.01, 1, 0.01])
+ub = np.array([600.0, 10, 600.0, 10, 600.0, 10, 600.0, 10, 600.0, 10])
 
 
 # pyswarm库是基于python的粒子群优化库，可以采用粒子群优化的方法对优化问题进行求解。
@@ -89,15 +189,13 @@ from pyswarm import pso
 # swarmsize 类型为int，用于设置粒子的个数，默认为100。
 # minfunc 类型为scalar，用于设置目标函数的最小改变值，默认为1e-8。
 # 计算训练时间
-start = time.time()
 
-xopt, fopt = pso(svrPso, lb, ub, maxiter=500, debug=True, phip=10, swarmsize=300, minfunc=0.001)
 
-# 优化的参数值：C 正则化参数。正则化的强度与C成反比。 epsilon：它指定了在训练损失函数中预测值与实际值之间距离为epsilon的epsilon-tube。
-print(" ")
-print('优化的参数: C = {c}, gamma={e}, Overall MSE={m}'.format(c=xopt[0], e=xopt[1], m=fopt))
-print(" ")
-
-print("*****************************优化完成hb***********************************")
-end = time.time()
-print('Training time: %s S' % (end-start))
+xopt, fopt = pso(svrPso, lb, ub, maxiter=1000, debug=True, phip=10, omega=0.9, swarmsize=500, minfunc=0.001)
+print('优化的参数: hbo2_C={hbo2_c}, hbo2_gamma={hbo2_e},\n'
+      'hb_C={hb_c}, hb_gamma={hb_e},\n'
+      'lipid_C={lipid_c}, lipid_gamma={lipid_e},\n'
+      'collagen_C={collagen_c}, collagen_gamma={collagen_e},\n'
+      'OverLoss ={m}'.format(hbo2_c=xopt[0], hbo2_e=xopt[1], hb_c=xopt[2], hb_e=xopt[3],
+                             water_c=xopt[4], water_e=xopt[5], lipid_c=xopt[6], lipid_e=xopt[7],
+                             collagen_c=xopt[8], collagen_e=xopt[9], m=fopt))
