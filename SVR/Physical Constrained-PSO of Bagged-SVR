@@ -1,0 +1,283 @@
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split, KFold
+from sklearn import preprocessing
+from sklearn.metrics import mean_squared_error
+from sklearn.ensemble import BaggingRegressor
+import time
+
+data = pd.read_excel('D:/Newpython/my_train/data/simple_0810/train.xlsx')
+data2 = pd.read_excel('D:/Newpython/my_train/data/simple_0810/test.xlsx')
+data3 = pd.read_excel('D:/Newpython/my_train/data/simple_0810/bone.xlsx')
+data4 = pd.read_excel('D:/Newpython/my_train/data/simple_0810/exp.xlsx')
+data5 = pd.read_excel('D:/Newpython/my_train/data/simple_0810/data_train.xlsx')
+data6 = pd.read_excel('D:/Newpython/my_train/data/simple_0810/data_test.xlsx')
+# 提取特征变量和标签变量
+X_train = data.iloc[:, :15]
+Y_train = data.iloc[:, -5:]
+X_test = data2.iloc[:, :15]
+Y_test = data2.iloc[:, -5:]
+X_bone = data3.iloc[:, :15]
+X_exp = data4.iloc[:, :15]
+Wave_train = data5.iloc[:, :27]
+Wave_test = data6.iloc[:, :27]
+
+
+# 特征归一化
+MinMax = preprocessing.MinMaxScaler()
+X_Tr = MinMax.fit_transform(X_train)
+X_Te = MinMax.transform(X_test)
+X_bo = MinMax.transform(X_bone)
+X_ex = MinMax.transform(X_exp)
+
+# 标签单独进行归一化
+label1= Y_train.iloc[:, 0:1]
+label2= Y_train.iloc[:, 1:2]
+label3= Y_train.iloc[:, 2:3]
+label4= Y_train.iloc[:, 3:4]
+label5= Y_train.iloc[:, 4:5]
+ru = label1.values
+label1 = label1/max(ru)
+label2 = label2/max(ru)
+label3 = label3/max(ru)
+label4 = label4/max(ru)
+label5 = label5/max(ru)
+Y_Tr = np.hstack((label1.values, label2.values,label3.values, label4.values, label5.values))
+
+from sklearn.metrics import r2_score
+mua = pd.read_excel('D:/Newpython/my_train/data/simple_0810/mua.xlsx')
+mua_hbo2 = mua.iloc[:, 0:1]
+mua_hb = mua.iloc[:, 1:2]
+mua_water = mua.iloc[:, 2:3]
+mua_lipid = mua.iloc[:, 3:4]
+mua_collagen = mua.iloc[:, 4:5]
+
+# 导入模型
+from sklearn.svm import SVR
+fold_count = 5
+# 将Data_Data和Phyice_Data
+X = pd.DataFrame(X_Tr)
+W_Tr = pd.DataFrame(Wave_train)
+W_Te = pd.DataFrame(Wave_test)
+Y_Tr = pd.DataFrame(Y_Tr)
+X_Te = pd.DataFrame(X_Te)
+Y_Te = pd.DataFrame(Y_test)
+
+# Phyice损失函数
+def phyice_inform(y_pre, y_true):
+    y_1 = MinMax.fit_transform(y_pre)
+    y_2 = MinMax.fit_transform(y_true)
+    r2_n = 1-(r2_score(y_1, y_2))
+    return r2_n
+def Phyice_Spec_constrains(params):
+    hbo2_w = Y_Tr.iloc[:, 0:1]
+    hb_w = Y_Tr.iloc[:, 1:2]
+    water_w = Y_Tr.iloc[:, 2:3]
+    lipid_w = Y_Tr.iloc[:, 3:4]
+    collagen_w = Y_Tr.iloc[:, 4:5]
+
+    model_hbo2 = SVR(kernel='rbf', C=params[0], gamma=params[1])
+    model_hb = SVR(kernel='rbf', C=params[2], gamma=params[3])
+    model_water = SVR(kernel='rbf', C=params[4], gamma=params[5])
+    model_lipid = SVR(kernel='rbf', C=params[6], gamma=params[7])
+    model_collagen = SVR(kernel='rbf', C=params[8], gamma=params[9])
+
+
+
+    model_hbo2.fit(X, hbo2_w.values.ravel())
+    model_hb.fit(X, hb_w.values.ravel())
+    model_water.fit(X, water_w.values.ravel())
+    model_lipid.fit(X, lipid_w.values.ravel())
+    model_collagen.fit(X, collagen_w.values.ravel())
+
+    hbo2_te_wave = model_hbo2.predict(X_Te)
+    hb_te_wave = model_hb.predict(X_Te)
+    water_te_wave = model_water.predict(X_Te)
+    lipid_te_wave = model_lipid.predict(X_Te)
+    collagen_te_wave = model_collagen.predict(X_Te)
+
+    hbo2_te_wave = pd.DataFrame(hbo2_te_wave)
+    hb_te_wave = pd.DataFrame(hb_te_wave)
+    water_te_wave = pd.DataFrame(water_te_wave)
+    lipid_te_wave = pd.DataFrame(lipid_te_wave)
+    collagen_te_wave = pd.DataFrame(collagen_te_wave)
+
+    loss_ps = []
+    pre = list(zip(hbo2_te_wave.values, hb_te_wave.values, water_te_wave.values,
+                   lipid_te_wave.values, collagen_te_wave.values, W_Te.values))
+    for x in pre:
+        Wave_pre = x[0] * mua_hbo2.values + x[1] * mua_hb.values \
+                       + x[2] * mua_water.values + x[3] * mua_lipid.values + x[4] * mua_collagen.values
+        Wave_true = pd.DataFrame(x[5])
+        r2_now = phyice_inform(Wave_pre, Wave_true)
+        loss_ps.append(r2_now)
+    loss_p = np.mean(loss_ps)
+    print('Loss_Phyice: {loss_p};\n'.format(loss_p=loss_p))
+    if loss_p <= 0.2:
+        loss_p = 0
+    return loss_p
+
+# # 计算结果中小于0的个数
+# def count0(result):
+#     count = 0
+#     for x1 in result:
+#         if x1 < 0:
+#             count += 1
+#     return count
+# def Phyice_Zero_constrains(params):
+#     hbo2_w = Y_Tr.iloc[:, 0:1]
+#     hb_w = Y_Tr.iloc[:, 1:2]
+#     water_w = Y_Tr.iloc[:, 2:3]
+#     lipid_w = Y_Tr.iloc[:, 3:4]
+#     collagen_w = Y_Tr.iloc[:, 4:5]
+#
+#     model_hbo2 = SVR(kernel='rbf', C=params[0], gamma=params[1])
+#     model_hb = SVR(kernel='rbf', C=params[2], gamma=params[3])
+#     model_water = SVR(kernel='rbf', C=params[4], gamma=params[5])
+#     model_lipid = SVR(kernel='rbf', C=params[6], gamma=params[7])
+#     model_collagen = SVR(kernel='rbf', C=params[8], gamma=params[9])
+#
+#     model_hbo2.fit(X, hbo2_w.values.ravel())
+#     model_hb.fit(X, hb_w.values.ravel())
+#     model_water.fit(X, water_w.values.ravel())
+#     model_lipid.fit(X, lipid_w.values.ravel())
+#     model_collagen.fit(X, collagen_w.values.ravel())
+#
+#     hbo2_te_wave = model_hbo2.predict(X_Te)
+#     hb_te_wave = model_hb.predict(X_Te)
+#     water_te_wave = model_water.predict(X_Te)
+#     lipid_te_wave = model_lipid.predict(X_Te)
+#     collagen_te_wave = model_collagen.predict(X_Te)
+#
+#     hbo2_te_wave = pd.DataFrame(hbo2_te_wave)
+#     hb_te_wave = pd.DataFrame(hb_te_wave)
+#     water_te_wave = pd.DataFrame(water_te_wave)
+#     lipid_te_wave = pd.DataFrame(lipid_te_wave)
+#     collagen_te_wave = pd.DataFrame(collagen_te_wave)
+#
+#     result = np.vstack((hbo2_te_wave.values, hb_te_wave.values,
+#                         water_te_wave.values, lipid_te_wave.values, collagen_te_wave.values))
+#     counts = count0(result)
+#     print('小于0的样本个数: {counts};\n'.format(counts=counts))
+#     return counts
+
+# Data损失函数
+def mape(y_true, y_pred):
+    np.seterr(divide='ignore', invalid='ignore')  # 消除被除数为0的警告
+    return np.mean(np.abs((y_pred - y_true) / y_true)) * 100
+# 目标函数
+def svrPso(params):
+
+    kf = KFold(n_splits=5, shuffle=True, random_state=0)
+    for k, (train, test) in enumerate(kf.split(X, Y_Tr)):
+        MseTotal = 0
+        X_train, y_train = X.iloc[train], Y_Tr.iloc[train]
+        X_test, y_test = X.iloc[test], Y_Tr.iloc[test]
+
+        train_hbo2 = y_train.iloc[:, 0:1]
+        train_hb = y_train.iloc[:, 1:2]
+        train_water = y_train.iloc[:, 2:3]
+        train_lipid = y_train.iloc[:, 3:4]
+        train_collagen = y_train.iloc[:, 4:5]
+
+        model_hbo2 = SVR(kernel='rbf', C=params[0], gamma=params[1])
+        bagging_hbo2 = BaggingRegressor(model_hbo2, n_estimators=10)
+        model_hb = SVR(kernel='rbf', C=params[2], gamma=params[3])
+        bagging_hb = BaggingRegressor(model_hb, n_estimators=10)
+        model_water = SVR(kernel='rbf', C=params[4], gamma=params[5])
+        bagging_water = BaggingRegressor(model_water, n_estimators=10)
+        model_lipid = SVR(kernel='rbf', C=params[6], gamma=params[7])
+        bagging_lipid = BaggingRegressor(model_lipid, n_estimators=10)
+        model_collagen = SVR(kernel='rbf', C=params[8], gamma=params[9])
+        bagging_collagen = BaggingRegressor(model_collagen, n_estimators=10)
+
+        bagging_hbo2.fit(X_train, train_hbo2.values.ravel())
+        bagging_hb.fit(X_train, train_hb.values.ravel())
+        bagging_water.fit(X_train, train_water.values.ravel())
+        bagging_lipid.fit(X_train, train_lipid.values.ravel())
+        bagging_collagen.fit(X_train, train_collagen.values.ravel())
+
+        test_hbo2 = y_test.iloc[:, 0:1]
+        test_hb = y_test.iloc[:, 1:2]
+        test_water = y_test.iloc[:, 2:3]
+        test_lipid = y_test.iloc[:, 3:4]
+        test_collagen = y_test.iloc[:, 4:5]
+
+        hbo2_te = bagging_hbo2.predict(X_test)
+        hb_te = bagging_hb.predict(X_test)
+        water_te = bagging_water.predict(X_test)
+        lipid_te = bagging_lipid.predict(X_test)
+        collagen_te = bagging_collagen.predict(X_test)
+
+        # hbo2_te = pd.DataFrame(hbo2_te)
+        # hb_te = pd.DataFrame(hb_te)
+        # water_te = pd.DataFrame(water_te)
+        # lipid_te = pd.DataFrame(lipid_te)
+        # collagen_te = pd.DataFrame(collagen_te)
+
+        hbo2_mse = mean_squared_error(hbo2_te, test_hbo2)
+        hb_mse = mean_squared_error(hb_te, test_hb)
+        lipid_mse = mean_squared_error(water_te, test_water)
+        water_mse = mean_squared_error(lipid_te, test_lipid)
+        collagen_mse = mean_squared_error(collagen_te, test_collagen)
+        hbo2_te = pd.DataFrame(hbo2_te)
+        hb_te = pd.DataFrame(hb_te)
+        water_te = pd.DataFrame(water_te)
+        lipid_te = pd.DataFrame(lipid_te)
+        collagen_te = pd.DataFrame(collagen_te)
+        result = np.vstack((hbo2_te.values, hb_te.values,water_te.values, lipid_te.values, collagen_te.values))
+        if np.any(result < 0):
+            MseTotal = 5
+            break
+        else:
+             loss_data = (hbo2_mse + hb_mse + lipid_mse + water_mse + collagen_mse)
+             MseTotal = MseTotal + loss_data
+    MseCV = MseTotal / fold_count
+
+    Phyice_Spec_constrains(params)
+    print('HbO2:    {hbo2_c}; {hbo2_e};\n'
+          'Hb:      {hb_c};{hb_e};\n'
+          'Water:   {water_c};{water_e};\n'
+          'Lipid:   {lipid_c};{lipid_e};\n'
+          'Collagen:{collagen_c};{collagen_e};\n'
+          'HbO2_MSE:{hbo2_mse};\n''Hb_MSE:{hb_mse};;\n'
+          'water_MSE:{water_mse};\n''lipid_MSE:{lipid_mse};;\n'
+          'Collagen_MSE:{collagen_mse};\n'
+          'Loss:{m}\n'.format(hbo2_c=params[0], hbo2_e=params[1], hb_c=params[2], hb_e=params[3],
+                              water_c=params[4], water_e=params[5], lipid_c=params[6], lipid_e=params[7],
+                              collagen_c=params[8], collagen_e=params[9],
+                              hbo2_mse=hbo2_mse, hb_mse=hb_mse,
+                              water_mse=water_mse, lipid_mse=lipid_mse,
+                              collagen_mse=collagen_mse,
+                              m=MseCV))
+    return MseCV
+
+print("************开始进行优化：PSO优化SVR*****************")
+
+
+
+# 定义优化器允许搜索的输入变量的限制。lb和ub别代表下限和上限  执指定了 参数C和参数epsilon的范围
+lb = np.array([1, 0.01, 1, 0.01, 1, 0.01, 1, 0.01, 1, 0.01])
+ub = np.array([300.0, 4, 300.0, 4, 300.0, 4, 300.0, 4, 300.0, 4])
+
+# pyswarm库是基于python的粒子群优化库。
+from pyswarm import pso
+
+# 计算训练时间
+
+xopt, fopt, x_hist, f_hist = pso(svrPso, lb, ub, maxiter=100, f_ieqcons=Phyice_Spec_constrains, debug=True, phip=10, omega=0.9, swarmsize=500, minfunc=0.0001)
+print('优化的参数: hbo2_C={hbo2_c}, hbo2_gamma={hbo2_e},\n'
+      'hb_C={hb_c}, hb_gamma={hb_e},\n'
+      'lipid_C={lipid_c}, lipid_gamma={lipid_e},\n'
+      'collagen_C={collagen_c}, collagen_gamma={collagen_e},\n'
+      'OverLoss ={m}'.format(hbo2_c=xopt[0], hbo2_e=xopt[1], hb_c=xopt[2], hb_e=xopt[3],
+                             water_c=xopt[4], water_e=xopt[5], lipid_c=xopt[6], lipid_e=xopt[7],
+                             collagen_c=xopt[8], collagen_e=xopt[9], m=fopt))
+
+x = x_hist
+x = pd.DataFrame(x)
+file_pathx = 'D:/PA_ML_Result/SVR_0921/iter_x.xlsx'  #
+x.to_excel(file_pathx)
+f = f_hist
+file_pathf = 'D:/PA_ML_Result/SVR_0921/iter_f.xlsx'  #
+f.to_excel(file_pathf)
